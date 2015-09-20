@@ -79,7 +79,10 @@ def get_search():
                 addDir(5, '>>> Next Page >>>', next, '')
 
 def get_livetv():
-    base4_url = 'http://www.dittotv.com/livetv/all/0/'+language
+    if url:
+        base4_url = base_url+url
+    else:
+        base4_url = 'http://www.dittotv.com/livetv/all/0/'+language
     r = make_request(base4_url)
 
     soup = BeautifulSoup(r, 'html5lib')
@@ -92,6 +95,14 @@ def get_livetv():
         tag_img = catalog.find('img').attrs.get('src')
         addDir(8, tag_link_title, full_tag_link, tag_img, False)
 
+    if soup.find('a', attrs={"class" : "next-epg next-disabled"}):
+        print "next-epg-disabled"
+    else:        
+        tag_next = soup.find('a', attrs={"class" : "next-epg"})
+        if tag_next:
+            next = tag_next.attrs.get('href','')
+            if -1 == next.find('javascript:void(0)'):
+                addDir(4, '>>> Next Page >>>', next, '')
         
 def get_movies():
     base3_url = '/movies/all/0/'+language
@@ -175,7 +186,6 @@ def get_livetv_url():
     else:
         key = re.findall(r'value=\"(.*?)\" class=\"e-url-val\"', html)[0]
     decrypted = GetLSProData(key=key, iv='00000000000000000000000000000000', data=encurl)
-
     params = re.compile("(http://[^']*\/)").findall(decrypted)
     if params:
         params = params[0]
@@ -191,13 +201,15 @@ def get_livetv_url():
 					size = int(size)
 				else:
 					size = 0
-				video=params+video
+				if 'http://' in video:
+					video = video
+				else:
+					video=params+video
 				videos.append( [size, video] )
     else:
         videos.append( [-2, match] )
 
     videos.sort(key=lambda L : L and L[0], reverse=True)
-
     for video in videos:
         if -1 == video[0]:
             size = '[Auto] '
@@ -205,6 +217,7 @@ def get_livetv_url():
             size = '[Windows] '
         else:
             size = '[' + str(video[0]) + '] '
+        print video[1]
         addDir(0, size + name, video[1], image, True)
 
     addon_log('get_video_url: end...')    
