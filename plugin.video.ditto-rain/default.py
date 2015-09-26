@@ -19,9 +19,11 @@ debug = Addon.getSetting('debug')
 language = (Addon.getSetting('langType')).lower()
 tvsort = (Addon.getSetting('tvsortType')).lower()
 moviessort = (Addon.getSetting('moviessortType')).lower()
+quality = (Addon.getSetting('qualityType')).lower()
 
 base_url = 'http://www.dittotv.com'
 base2_url = '/tvshows/all/0/'+language+'/'
+listitem=''
 
 def addon_log(string):
     if debug == 'true':
@@ -178,8 +180,9 @@ def get_episodes():
 def get_livetv_url():
     addon_log('get_video_url: begin...')
     videos = []
+    ptclass=url
+    ptclass=ptclass.rsplit('/')[-1:][0]
     html = make_request(base_url+url)
-    # matchlist = re.compile('([^"]*(?=m3u8).*?["])').findall(str(html))
     encurl = re.findall(r'\"file\":\"(.+?)\"', html)[0]
     if 'livetv' in url:
         key = re.findall(r'value=\"(.*?)\" class=\"livetv-url-val\"', html)[0]
@@ -210,17 +213,19 @@ def get_livetv_url():
         videos.append( [-2, match] )
 
     videos.sort(key=lambda L : L and L[0], reverse=True)
-    for video in videos:
-        if -1 == video[0]:
-            size = '[Auto] '
-        elif -2 == video[0]:
-            size = '[Windows] '
-        else:
-            size = '[' + str(video[0]) + '] '
-        print video[1]
-        addDir(0, size + name, video[1], image, True)
 
-    addon_log('get_video_url: end...')    
+    if (quality=="maximum"):
+		addon_log('get_video_url: end...')
+		videos2 = videos[0]
+		listitem =xbmcgui.ListItem(ptclass)
+		xbmc.Player().play(videos2[1],listitem)
+		addDir('','','','',False)
+    else:
+		for video in videos:
+			size = '[' + str(video[0]) + '] '
+			addDir(0, size + name, video[1], image, True)
+
+    
 
 	#Thanks Shani(LSP)
 def GetLSProData(key,iv,data):
