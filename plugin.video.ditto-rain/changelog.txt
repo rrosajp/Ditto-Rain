@@ -3,3 +3,6 @@
 
 -- [COLOR yellow][B]Quality[/COLOR][/B] Added Quality Options under settings.  There may be auto-play issue (stopped video starts playing) being caused by kodi notifications.
 -- [COLOR yellow][B]Video Title[/COLOR][/B] Added video title to playing video, it was missing due to new quality options.
+
+[B][COLOR green]V 1.0.3 (Saturday 10 October, 2015)[/COLOR][/B]
+-- [COLOR yellow][B]Video[/COLOR][/B] Removed empty directory when stream is loaded, and rather keep existing directory.  Resuming should work now for movies and tvshows.

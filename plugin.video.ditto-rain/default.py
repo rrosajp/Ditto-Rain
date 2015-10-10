@@ -21,6 +21,11 @@ tvsort = (Addon.getSetting('tvsortType')).lower()
 moviessort = (Addon.getSetting('moviessortType')).lower()
 quality = (Addon.getSetting('qualityType')).lower()
 
+if (quality=='let me choose'):
+	fold = False
+else:
+	fold = True
+
 base_url = 'http://www.dittotv.com'
 base2_url = '/tvshows/all/0/'+language+'/'
 listitem=''
@@ -69,7 +74,7 @@ def get_search():
 			tag_link_title = catalog.find('span', {'class':'category_image'}).text + ' - '+catalog('h1')[0]['title']
 			full_tag_link = catalog.find('a').attrs.get('href')
 			tag_img = catalog.find('img').attrs.get('src')
-			addDir(8, tag_link_title, full_tag_link, tag_img, False)
+			addDir(8, tag_link_title, full_tag_link, tag_img, fold)
 			
     if soup.find('a', attrs={"class" : "next-epg next-disabled"}):
         print "next-epg-disabled"
@@ -95,7 +100,7 @@ def get_livetv():
         full_tag_link = tag_link
         tag_link_title = catalog('a')[0]['title']
         tag_img = catalog.find('img').attrs.get('src')
-        addDir(8, tag_link_title, full_tag_link, tag_img, False)
+        addDir(8, tag_link_title, full_tag_link, tag_img, fold)
 
     if soup.find('a', attrs={"class" : "next-epg next-disabled"}):
         print "next-epg-disabled"
@@ -122,7 +127,7 @@ def get_movies():
         full_tag_link = tag_link
         tag_link_title = catalog.find('a', {'class' : 'title-link'}).attrs.get('title')
         tag_img = catalog.find('img').attrs.get('src')
-        addDir(8, tag_link_title, full_tag_link, tag_img, False)  
+        addDir(8, tag_link_title, full_tag_link, tag_img, fold)  
 
     if soup.find('a', attrs={"class" : "next-epg next-disabled"}):
         print "next-epg-disabled"
@@ -175,7 +180,7 @@ def get_episodes():
         full_episode_link = tag_link
         tag_link_title = catalog.find('a', {'class' : 'title-link'}).attrs.get('title')
         tag_img = catalog.find('img').attrs.get('src')
-        addDir(8, tag_link_title, full_episode_link, tag_img, False)
+        addDir(8, tag_link_title, full_episode_link, tag_img, fold)
     
 def get_livetv_url():
     addon_log('get_video_url: begin...')
@@ -198,6 +203,7 @@ def get_livetv_url():
     html2 = make_request(decrypted)
     if html2:
 		matchlist2 = re.compile("BANDWIDTH=([0-9]+)[^\n]*\n([^\n]*)\n").findall(str(html2))
+		print matchlist2
 		if matchlist2:
 			for (size, video) in matchlist2:
 				if size:
@@ -213,17 +219,19 @@ def get_livetv_url():
         videos.append( [-2, match] )
 
     videos.sort(key=lambda L : L and L[0], reverse=True)
+    print 'videos',videos
 
-    if (quality=="maximum"):
+    if (quality=='let me choose'):
+		for video in videos:
+			size = '[' + str(video[0]) + '] '
+			print 'video1 is:', video[1]
+			addDir(0, size + name, video[1], image, True)
+    else:
 		addon_log('get_video_url: end...')
 		videos2 = videos[0]
 		listitem =xbmcgui.ListItem(ptclass)
-		xbmc.Player().play(videos2[1],listitem)
-		addDir('','','','',False)
-    else:
-		for video in videos:
-			size = '[' + str(video[0]) + '] '
-			addDir(0, size + name, video[1], image, True)
+		listitem.setPath(videos2[1])
+		xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, listitem)
 
     
 
