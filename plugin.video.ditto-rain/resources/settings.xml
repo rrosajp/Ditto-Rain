@@ -3,6 +3,5 @@
 	<setting id="langType" type="labelenum" label="Select Language" values="All|Hindi|English|Kannada|Tamil|Telugu|Malayalam|Marathi|Bengali|Odiya|Russian|Gujarati|Arabic|Others" default="Hindi"/>
 	<setting id="tvsortType" type="labelenum" label="TV Shows sorting" values="Default|Name" default="Default" />
 	<setting id="moviessortType" type="labelenum" label="Movies sorting" values="Default|Name" default="Default" />
-	<setting id="qualityType" type="labelenum" label="Video Quality Selection" values="Let me Choose|Maximum" default="Let me Choose"/>
 	</category>
 </settings>

@@ -4,27 +4,30 @@ import urllib2
 import xbmcplugin
 import xbmcgui
 import xbmcaddon
-from bs4 import BeautifulSoup
 from addon.common.addon import Addon
 import time
 import base64, json
 import pyaes
+import sqlite3
+import socket
 
 
-addon_id = 'plugin.video.ditto-rain'
+addon_id = 'plugin.video.ditto2-rain'
 addon = Addon(addon_id, sys.argv)
 Addon = xbmcaddon.Addon(addon_id)
 debug = Addon.getSetting('debug')
 
+socket.setdefaulttimeout(30)
+pluginhandle = int(sys.argv[1])
+addonDir = xbmc.translatePath(Addon.getAddonInfo('path'))
+profile = xbmc.translatePath(Addon.getAddonInfo('profile'))
+local_db = os.path.join(profile, 'local_db.db')
+pluginDir = sys.argv[0]
+dialog = xbmcgui.Dialog()
+
 language = (Addon.getSetting('langType')).lower()
 tvsort = (Addon.getSetting('tvsortType')).lower()
 moviessort = (Addon.getSetting('moviessortType')).lower()
-quality = (Addon.getSetting('qualityType')).lower()
-
-if (quality=='let me choose'):
-	fold = False
-else:
-	fold = True
 
 base_url = 'http://www.dittotv.com'
 base2_url = '/tvshows/all/0/'+language+'/'
@@ -32,7 +35,7 @@ listitem=''
 
 def addon_log(string):
     if debug == 'true':
-        xbmc.log("[plugin.video.ditto-rain-%s]: %s" %(addon_version, string))
+        xbmc.log("[plugin.video.ditto2-rain-%s]: %s" %(addon_version, string))
 
 def make_request(url):
     try:
@@ -49,140 +52,200 @@ def make_request(url):
         ##sys.exit(1)
         
 def get_menu():
-    
-    addDir(2, '[COLOR orange][B]TV Shows[/B][/COLOR]', '', '')
-    addDir(3, '[COLOR white][B]Movies[/B][/COLOR]', '', '')        
-    addDir(4, '[COLOR green][B]Live TV[/B][/COLOR]', '', '')
-    addDir(5, 'Search', '', '')
 
-def get_search():
-    if url:
-	    search_url = base_url+url
-    else:
-        keyb = xbmc.Keyboard('', 'Search for Movies/TV Shows/Trailers/Videos in all languages')
-        keyb.doModal()
-        if (keyb.isConfirmed()):
-            search_term = urllib.quote_plus(keyb.getText())
-			
-        search_url = 'http://www.dittotv.com/search/all/0/'+search_term
+	addDir(2, '[COLOR orange][B]TV Shows[/B][/COLOR]', '', '')
+	addDir(3, '[COLOR white][B]Movies[/B][/COLOR]', '', '')        
+	addDir(4, '[COLOR green][B]Live TV[/B][/COLOR]', '', '')
+	addDir(5, 'Search', '', '')
+	addDir(12, 'My Favorites', '', '')
+
+def get_favorites():
+	print 'Display Favorite Shows'
+	conn = sqlite3.connect(local_db)
+	c = conn.cursor()
+	c.execute('CREATE TABLE IF NOT EXISTS ditto_fav_list (fav_name TEXT PRIMARY KEY, fav_url TEXT, fav_icon TEXT)')
+	c.execute('SELECT fav_name, fav_url, fav_icon FROM ditto_fav_list')
+	shows = c.fetchall()
+	conn.close()
+	if len(shows):
+		print shows # DEBUG
+		xbmcplugin.addSortMethod(int(sys.argv[1]), 1)
+		for fav_name, fav_url, fav_icon in shows:
+			addDir(1, fav_name, fav_url, fav_icon, dirmode='favorites')
+	else:
+		dialog.notification('Info', 'No shows were added to the addon favorites.', xbmcgui.NOTIFICATION_INFO, 2000)
+
+	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 	
-    r=make_request(search_url)
-    soup = BeautifulSoup(r, 'html5lib')
-    tag_cataloglist = soup.findAll('div', {'class' : 'catalog-item'})
-    for catalog in tag_cataloglist:
-		if (catalog.find('span', {'class':'category_image'}).text != 'Live TV'):
-			tag_link_title = catalog.find('span', {'class':'category_image'}).text + ' - '+catalog('h1')[0]['title']
-			full_tag_link = catalog.find('a').attrs.get('href')
-			tag_img = catalog.find('img').attrs.get('src')
-			addDir(8, tag_link_title, full_tag_link, tag_img, fold)
+def edit_favorites(fav_arg):
+    print 'Favorites function activated'
+    print 'Parameter: ' + str(fav_arg)
+    data = fav_arg.split(';')
+    fav_mode = data[0].replace('MODE:', '')
+    fav_name = data[1].replace('NAME:', '')
+    fav_url = data[2].replace('URL:', '')
+    print 'Mode:',fav_mode
+    print 'Url:',fav_url
+    print 'Show name:',fav_name
+
+    # Connect to DB
+    conn = sqlite3.connect(local_db)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS ditto_fav_list (fav_name TEXT PRIMARY KEY, fav_url TEXT, fav_icon TEXT)')
+
+    if fav_mode == 'ADD':
+        progress = xbmcgui.DialogProgress()
+        progress.create('Adding to favorites', 'Added "{}" to favorites'.format(fav_name))
+        progress.update( 50, "", 'Getting show icon...', "" )
+        print 'Adding Favorite'
+        content = make_request(fav_url)
+        show_icon = ''
+        c.execute('INSERT OR REPLACE INTO ditto_fav_list VALUES ("{}", "{}", "{}")'.format(fav_name, fav_url, show_icon))
+        progress.close()
+        header = 'Show Added'
+        text = '"{}" added to favorites.'.format(fav_name)
+
+    else:
+        print 'Removing Favorite'
+        c.execute('DELETE FROM ditto_fav_list WHERE fav_name="{}"'.format(fav_name))
+        header = 'Show Removed'
+        text = '"{}" removed from favorites.'.format(fav_name)
+    conn.commit()
+    conn.close()
+    dialog.notification(header, text, xbmcgui.NOTIFICATION_INFO, 3000)
+    xbmc.executebuiltin("Container.Refresh")
+	
+def get_search():
+	if url:
+		search_url = base_url+url
+	else:
+		keyb = xbmc.Keyboard('', 'Search for Movies/TV Shows/Trailers/Videos in all languages')
+		keyb.doModal()
+		if (keyb.isConfirmed()):
+			search_term = urllib.quote_plus(keyb.getText())
 			
-    if soup.find('a', attrs={"class" : "next-epg next-disabled"}):
-        print "next-epg-disabled"
-    else:        
-        tag_next = soup.find('a', attrs={"class" : "next-epg"})
-        if tag_next:
-            next = tag_next.attrs.get('href','')
-            if -1 == next.find('javascript:void(0)'):
-                addDir(5, '>>> Next Page >>>', next, '')
+		search_url = 'http://www.dittotv.com/search/all/0/'+search_term
+
+	r=make_request(search_url)
+	match = re.compile('<a href="(.+?)">\s+<h1 title="(.+?)">[^"]+<img  src="(.+?)".*\n.*>(.+?)</span>').findall(r)
+	for link, name, img, movie in match:
+		if (movie != 'Live TV'):
+			if '&amp;' in name:
+				name = name.replace('&amp;', '&')
+			if '&#39;' in name:
+				name = name.replace('&#39;', '\'')
+			addDir(8, name, link, img, fold)
+			
+	match2 = re.compile('class="next-epg next-disabled"').findall(r)
+	
+	if match2:
+		print "no more next page"		
+	else:
+		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
+		addDir(4, '>>> Next Page >>>', match3[0], '')
+	
+	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 def get_livetv():
-    if url:
-        base4_url = base_url+url
-    else:
-        base4_url = 'http://www.dittotv.com/livetv/all/0/'+language
-    r = make_request(base4_url)
+	if url:
+		base4_url = base_url+url
+	else:
+		base4_url = 'http://www.dittotv.com/livetv/all/0/'+language
+	r = make_request(base4_url)
 
-    soup = BeautifulSoup(r, 'html5lib')
-    #tag_cataloglist = soup.findAll('div', {'class' : 'row movies-all-outerWrap program-all-set'})
-    tag_cataloglist = soup.findAll('div', {'class' : 'subpattern2 movies-all-indi channels-all alltvchannel'})
-    for catalog in tag_cataloglist:
-        tag_link = catalog('a')[0]['href']
-        full_tag_link = tag_link
-        tag_link_title = catalog('a')[0]['title']
-        tag_img = catalog.find('img').attrs.get('src')
-        addDir(8, tag_link_title, full_tag_link, tag_img, fold)
-
-    if soup.find('a', attrs={"class" : "next-epg next-disabled"}):
-        print "next-epg-disabled"
-    else:        
-        tag_next = soup.find('a', attrs={"class" : "next-epg"})
-        if tag_next:
-            next = tag_next.attrs.get('href','')
-            if -1 == next.find('javascript:void(0)'):
-                addDir(4, '>>> Next Page >>>', next, '')
+	match = re.compile('<div class="subpattern2 movies-all-indi channels-all alltvchannel">\n<a href="(.+?)" title="(.+?)"><img src="(.+?)"').findall(r)
+	
+	for link, name, img in match:
+		if '&amp;' in name:
+			name = name.replace('&amp;', '&')
+		if '&#39;' in name:
+			name = name.replace('&#39;', '\'')
+		addDir(8, name, link, img, isplayable=True)
+		
+	match2 = re.compile('class="next-epg next-disabled"').findall(r)
+	
+	if match2:
+		print "no more next page"		
+	else:
+		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
+		addDir(4, '>>> Next Page >>>', match3[0], '')
+	
+	xbmcplugin.endOfDirectory(int(sys.argv[1]))
         
 def get_movies():
-    base3_url = '/movies/all/0/'+language
-    
-    if url:
-        r=make_request(base_url+url)
-    else:
-        r = make_request(base_url+base3_url)
+	base3_url = '/movies/all/0/'+language
 
-    soup = BeautifulSoup(r, 'html5lib')
-    tag_cataloglist = soup.findAll('div', {'class' : 'catalog-item mb1'})
+	if url:
+		r=make_request(base_url+url)
+	else:
+		r = make_request(base_url+base3_url)
 
-    for catalog in tag_cataloglist:
-        tag_link = catalog.find('a', {'class' : 'title-link'}).attrs.get('href')
-        full_tag_link = tag_link
-        tag_link_title = catalog.find('a', {'class' : 'title-link'}).attrs.get('title')
-        tag_img = catalog.find('img').attrs.get('src')
-        addDir(8, tag_link_title, full_tag_link, tag_img, fold)  
+	match = re.compile('<a href="(.+?)" title="(.+?)" >\n.*<img src="(.+?)"').findall(r)
 
-    if soup.find('a', attrs={"class" : "next-epg next-disabled"}):
-        print "next-epg-disabled"
-    else:        
-        tag_next = soup.find('a', attrs={"class" : "next-epg"})
-        if tag_next:
-            next = tag_next.attrs.get('href','')
-            if -1 == next.find('javascript:void(0)'):
-                addDir(3, '>>> Next Page >>>', next, '')
+	for link, name, img in match:
+		if '&amp;' in name:
+			name = name.replace('&amp;', '&')
+		if '&#39;' in name:
+			name = name.replace('&#39;', '\'')
+		addDir(8, name, link, img, isplayable=True)  
+
+	match2 = re.compile('class="next-epg next-disabled"').findall(r)
+
+	if match2:
+		print "no more next page"		
+	else:
+		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
+		addDir(3, '>>> Next Page >>>', match3[0], '')
+		
 	if (moviessort == "name"):
-		xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )				
+		xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
+
+	xbmcplugin.endOfDirectory(int(sys.argv[1]))
         
 def get_shows():
-    
-    if url:
-        r=make_request(base_url+url)
-    else:
-        r = make_request(base_url+base2_url)
 
-    soup = BeautifulSoup(r, 'html5lib')
-    tag_cataloglist = soup.findAll('div', {'class' : 'catalog-item'})
+	if url:
+		r=make_request(base_url+url)
+	else:
+		r = make_request(base_url+base2_url)
 
-    for catalog in tag_cataloglist:
-        tag_link = catalog.find('a', {'class' : 'title-link'}).attrs.get('href')
-        full_tag_link = tag_link
-        tag_link_title = catalog.find('a', {'class' : 'title-link'}).attrs.get('title')
-        tag_img = catalog.find('img').attrs.get('src')
-        addDir(1, tag_link_title, full_tag_link, tag_img, False)
-    
-    if soup.find('a', attrs={"class" : "next-epg next-disabled"}):
-        print "next-epg-disabled"
-    else:        
-        tag_next = soup.find('a', attrs={"class" : "next-epg"})
-        if tag_next:
-            next = tag_next.attrs.get('href','')
-            if -1 == next.find('javascript:void(0)'):
-                addDir(2, '>>> Next Page >>>', next, '')
-	if (tvsort == "name"):
+	match = re.compile('<a href="(.+?)" title="(.+?)">\s+<img  src="(.+?)"').findall(r)
+
+	for link, name, img in match:
+		if '&amp;' in name:
+			name = name.replace('&amp;', '&')
+		if '&#39;' in name:
+			name = name.replace('&#39;', '\'')
+		addDir(1, name, base_url+link, img, dirmode='allshows', isplayable=False) 
+
+	match2 = re.compile('class="next-epg next-disabled"').findall(r)
+
+	if match2:
+		print "no more next page"		
+	else:
+		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
+		addDir(2, '>>> Next Page >>>', match3[0], '')
+		
+	if (moviessort == "name"):
 		xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
+
+	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def get_episodes():
-    r = make_request(base_url+url+'/episodes')
+	r = make_request(url+'/episodes')
 
-    soup = BeautifulSoup(r, 'html5lib')
-    tag_cataloglist = soup.findAll('div', {'class' : 'catalog-item'})
+	match = re.compile('<a href="(.+?)" title="(.+?)">\s+<img  src="(.+?)"').findall(r)
+	for link, name, img in match:
+		if '&amp;' in name:
+			name = name.replace('&amp;', '&')
+		if '&#39;' in name:
+			name = name.replace('&#39;', '\'')
+		addDir(8, name, link, img, isplayable=True) 
     
-    for catalog in tag_cataloglist:
-        tag_link = catalog.find('a').attrs.get('href')
-        full_episode_link = tag_link
-        tag_link_title = catalog.find('a', {'class' : 'title-link'}).attrs.get('title')
-        tag_img = catalog.find('img').attrs.get('src')
-        addDir(8, tag_link_title, full_episode_link, tag_img, fold)
-    
-def get_livetv_url():
+	xbmcplugin.endOfDirectory(int(sys.argv[1]))
+	
+def get_livetv_url(url):
     addon_log('get_video_url: begin...')
     videos = []
     ptclass=url
@@ -221,18 +284,14 @@ def get_livetv_url():
     videos.sort(key=lambda L : L and L[0], reverse=True)
     print 'videos',videos
 
-    if (quality=='let me choose'):
-		for video in videos:
-			size = '[' + str(video[0]) + '] '
-			print 'video1 is:', video[1]
-			addDir(0, size + name, video[1], image, True)
-    else:
-		addon_log('get_video_url: end...')
-		videos2 = videos[0]
-		listitem =xbmcgui.ListItem(ptclass)
-		listitem.setPath(videos2[1])
-		xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, listitem)
-
+    addon_log('get_video_url: end...')
+    final_video = videos[0][1]
+    listitem =xbmcgui.ListItem(ptclass)
+    listitem.setProperty('IsPlayable', 'true')
+    listitem.setPath(final_video)
+    xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, listitem)		
+		
+    # xbmcplugin.endOfDirectory(int(sys.argv[1]))
     
 
 	#Thanks Shani(LSP)
@@ -247,25 +306,35 @@ def GetLSProData(key,iv,data):
     retval= val2[0].replace('\'', '')
     return retval
 	
-def addDir(mode,name,url,image,isplayable=False):
-    name = name.encode('utf-8', 'ignore')
-    url = url.encode('utf-8', 'ignore')
-    image = image.encode('utf-8', 'ignore')
+def addDir(mode,name,url,image, dirmode=None, isplayable=False):
+	# name = name.encode('utf-8', 'ignore')
+	# url = url.encode('utf-8', 'ignore')
+	# image = image.encode('utf-8', 'ignore')
 
-    if 0==mode:
-        link = url
-    else:
-        link = sys.argv[0]+"?mode="+str(mode)+"&name="+urllib.quote_plus(name)+"&url="+urllib.quote_plus(url)+"&image="+urllib.quote_plus(image)
+	if 0==mode:
+		link = url
+	else:
+		link = sys.argv[0]+"?mode="+str(mode)+"&name="+urllib.quote_plus(name)+"&url="+urllib.quote_plus(url)+"&image="+urllib.quote_plus(image)
 
-    ok=True
-    item=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=image)
-    item.setInfo( type="Video", infoLabels={ "Title": name } )
-    isfolder=True
-    if isplayable:
-        item.setProperty('IsPlayable', 'true')
-        isfolder=False
-    ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=link,listitem=item,isFolder=isfolder)
-    return ok
+	ok=True
+	item=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=image)
+	# item.setInfo( type="Video", infoLabels={ "Title": name } )
+
+	if dirmode == 'allshows': 
+		add_fav_cmd = 'MODE:ADD;NAME:{};URL:{}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
+		RunPlugin2 = 'RunPlugin({}?mode=13&fav_arg={})'.format(sys.argv[0], add_fav_cmd)
+		item.addContextMenuItems([('Add Ditto Favorites', RunPlugin2,)])
+	if dirmode == 'favorites':
+		rem_fav_cmd = 'MODE:REMOVE;NAME:{};URL:{}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
+		RunPlugin = 'RunPlugin({}?mode=13&fav_arg={})'.format(sys.argv[0], rem_fav_cmd)
+		item.addContextMenuItems([('Remove from Ditto Favorites', RunPlugin,)])
+
+	isfolder=True
+	if isplayable:
+		item.setProperty('IsPlayable', 'true')
+		isfolder=False
+	ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=link,listitem=item,isFolder=isfolder)
+	return ok
 
 def get_params():
     param=[]
@@ -289,6 +358,7 @@ mode=None
 name=None
 url=None
 image=None
+fav_arg = None
 
 try:
     mode=int(params["mode"])
@@ -304,6 +374,10 @@ except:
     pass
 try:
     image=urllib.unquote_plus(params["image"])
+except:
+    pass
+try:
+    fav_arg = urllib.unquote_plus(params["fav_arg"])
 except:
     pass
 
@@ -331,9 +405,15 @@ if mode==1:
     get_episodes()
 
 if mode==8:
-    get_livetv_url()
+    get_livetv_url(url)
     
 if mode==11:
     get_video_url()
 
+if mode==12:
+	get_favorites()
+
+if mode==13:
+	edit_favorites(fav_arg)
+	
 xbmcplugin.endOfDirectory(int(sys.argv[1]))

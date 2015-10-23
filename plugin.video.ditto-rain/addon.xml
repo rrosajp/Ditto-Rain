@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon id="plugin.video.ditto-rain"
        name="Ditto"
-       version="1.0.3"
+       version="1.0.4"
        provider-name="YoColdRain">
     <requires>
         <import addon="xbmc.python" version="2.1.0"/>
-        <import addon="script.module.html5lib" version="0.999.0"/>
-        <import addon="script.module.beautifulsoup4" version="4.3.2"/>
         <import addon="script.module.addon.common" version="2.0.0" />
     </requires>
     <extension point="xbmc.python.pluginsource"
