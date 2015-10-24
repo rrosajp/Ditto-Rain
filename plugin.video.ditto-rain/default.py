@@ -33,6 +33,10 @@ base_url = 'http://www.dittotv.com'
 base2_url = '/tvshows/all/0/'+language+'/'
 listitem=''
 
+# Create addon folder in user_data, necessary for the sqlite db
+if Addon.getSetting("firstrun") != 'false':
+	Addon.setSetting("firstrun", 'false')
+
 def addon_log(string):
     if debug == 'true':
         xbmc.log("[plugin.video.ditto2-rain-%s]: %s" %(addon_version, string))
