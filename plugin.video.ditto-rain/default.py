@@ -12,7 +12,7 @@ import sqlite3
 import socket
 
 
-addon_id = 'plugin.video.ditto2-rain'
+addon_id = 'plugin.video.ditto-rain'
 addon = Addon(addon_id, sys.argv)
 Addon = xbmcaddon.Addon(addon_id)
 debug = Addon.getSetting('debug')
