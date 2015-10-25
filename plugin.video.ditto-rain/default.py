@@ -127,9 +127,14 @@ def get_search():
 		keyb.doModal()
 		if (keyb.isConfirmed()):
 			search_term = urllib.quote_plus(keyb.getText())
+			if not search_term:
+				addon.show_ok_dialog(['empty search not allowed'.title()], addon.get_name())
+				get_search()				
+		else:
+			get_menu()
 			
 		search_url = 'http://www.dittotv.com/search/all/0/'+search_term
-
+	
 	r=make_request(search_url)
 	match = re.compile('<a href="(.+?)">\s+<h1 title="(.+?)">[^"]+<img  src="(.+?)".*\n.*>(.+?)</span>').findall(r)
 	for link, name, img, movie in match:
@@ -138,7 +143,12 @@ def get_search():
 				name = name.replace('&amp;', '&')
 			if '&#39;' in name:
 				name = name.replace('&#39;', '\'')
-			addDir(8, name, link, img, fold)
+			if '&amp;' in img:
+				img = img.replace('&amp;', '&')
+			if (movie!= 'TV Show'):
+				addDir(8, name, link, img, isplayable=True)
+			else:
+				addDir(1, name, base_url+link+'/episodes', img, dirmode='allshows', isplayable=False)
 			
 	match2 = re.compile('class="next-epg next-disabled"').findall(r)
 	
@@ -164,6 +174,8 @@ def get_livetv():
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
+		if '&amp;' in img:
+				img = img.replace('&amp;', '&')
 		addDir(8, name, link, img, isplayable=True)
 		
 	match2 = re.compile('class="next-epg next-disabled"').findall(r)
@@ -191,6 +203,8 @@ def get_movies():
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
+		if '&amp;' in img:
+				img = img.replace('&amp;', '&')
 		addDir(8, name, link, img, isplayable=True)  
 
 	match2 = re.compile('class="next-epg next-disabled"').findall(r)
@@ -220,7 +234,9 @@ def get_shows():
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		addDir(1, name, base_url+link, img, dirmode='allshows', isplayable=False) 
+		if '&amp;' in img:
+				img = img.replace('&amp;', '&')
+		addDir(1, name, base_url+link+'/episodes', img, dirmode='allshows', isplayable=False) 
 
 	match2 = re.compile('class="next-epg next-disabled"').findall(r)
 
@@ -230,22 +246,32 @@ def get_shows():
 		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
 		addDir(2, '>>> Next Page >>>', match3[0], '')
 		
-	if (moviessort == "name"):
+	if (tvsort == "name"):
 		xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
 
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def get_episodes():
-	r = make_request(url+'/episodes')
+	r = make_request(url)
 
-	match = re.compile('<a href="(.+?)" title="(.+?)">\s+<img  src="(.+?)"').findall(r)
+	match = re.compile('<a href="(.+?)" title="(.+?)">\s+<img  src="(.+?)"').findall(str(r))
 	for link, name, img in match:
 		if '&amp;' in name:
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		addDir(8, name, link, img, isplayable=True) 
+		if '&amp;' in img:
+				img = img.replace('&amp;', '&')
+		addDir(8, name, link, img, isplayable=True)
+
+	match2 = re.compile('class="next-epg next-disabled"').findall(str(r))
+
+	if match2:
+		print "no more next page"		
+	else:
+		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(str(r))
+		addDir(1, '>>> Next Page >>>', base_url+match3[0], '')		
     
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 	

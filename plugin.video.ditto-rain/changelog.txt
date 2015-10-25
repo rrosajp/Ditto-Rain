@@ -1,4 +1,7 @@
-[B][COLOR green]V 1.0.4 (Saturday 10 October, 2015)[/COLOR][/B]
+[B][COLOR green]V 1.0.5 (Saturday 25 October, 2015)[/COLOR][/B]
+-- [COLOR yellow][B]Fixes[/COLOR][/B] More fixes for bugs.  Fixed search query, added favorite option for tvshows popping under search.  Still a bug remains when empty search is made but everything else is stable.
+
+[B][COLOR green]V 1.0.4 (Saturday 23 October, 2015)[/COLOR][/B]
 -- [COLOR yellow][B]Fixes[/COLOR][/B] Removed BeautifulSoup and html5lib requirements.  Also, Let me choose option removed from settings, only highest quality stream available will play.  Added Addon Favorites options.
 
 [B][COLOR green]V 1.0.3 (Saturday 10 October, 2015)[/COLOR][/B]
