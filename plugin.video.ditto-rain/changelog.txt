@@ -1,3 +1,6 @@
+[B][COLOR green]V 1.0.6 (Saturday 25 October, 2015)[/COLOR][/B]
+-- [COLOR yellow][B]Fixes[/COLOR][/B] More fixes for bugs, mainly for FireTV, but should help other OS as well.
+
 [B][COLOR green]V 1.0.5 (Saturday 25 October, 2015)[/COLOR][/B]
 -- [COLOR yellow][B]Fixes[/COLOR][/B] More fixes for bugs.  Fixed search query, added favorite option for tvshows popping under search.  Still a bug remains when empty search is made but everything else is stable.
 

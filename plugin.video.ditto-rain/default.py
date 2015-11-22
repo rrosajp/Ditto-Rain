@@ -39,7 +39,7 @@ if Addon.getSetting("firstrun") != 'false':
 
 def addon_log(string):
     if debug == 'true':
-        xbmc.log("[plugin.video.ditto2-rain-%s]: %s" %(addon_version, string))
+        xbmc.log("[plugin.video.ditto-rain-%s]: %s" %(addon_version, string))
 
 def make_request(url):
     try:
@@ -99,21 +99,21 @@ def edit_favorites(fav_arg):
 
     if fav_mode == 'ADD':
         progress = xbmcgui.DialogProgress()
-        progress.create('Adding to favorites', 'Added "{}" to favorites'.format(fav_name))
+        progress.create('Adding to favorites', 'Added "{0}" to favorites'.format(fav_name))
         progress.update( 50, "", 'Getting show icon...', "" )
         print 'Adding Favorite'
         content = make_request(fav_url)
         show_icon = ''
-        c.execute('INSERT OR REPLACE INTO ditto_fav_list VALUES ("{}", "{}", "{}")'.format(fav_name, fav_url, show_icon))
+        c.execute('INSERT OR REPLACE INTO ditto_fav_list VALUES ("{0}", "{1}", "{2}")'.format(fav_name, fav_url, show_icon))
         progress.close()
         header = 'Show Added'
-        text = '"{}" added to favorites.'.format(fav_name)
+        text = '"{0}" added to favorites.'.format(fav_name)
 
     else:
         print 'Removing Favorite'
-        c.execute('DELETE FROM ditto_fav_list WHERE fav_name="{}"'.format(fav_name))
+        c.execute('DELETE FROM ditto_fav_list WHERE fav_name="{0}"'.format(fav_name))
         header = 'Show Removed'
-        text = '"{}" removed from favorites.'.format(fav_name)
+        text = '"{0}" removed from favorites.'.format(fav_name)
     conn.commit()
     conn.close()
     dialog.notification(header, text, xbmcgui.NOTIFICATION_INFO, 3000)
@@ -129,12 +129,13 @@ def get_search():
 			search_term = urllib.quote_plus(keyb.getText())
 			if not search_term:
 				addon.show_ok_dialog(['empty search not allowed'.title()], addon.get_name())
-				get_search()				
+				sys.exit()				
 		else:
 			get_menu()
+
 			
 		search_url = 'http://www.dittotv.com/search/all/0/'+search_term
-	
+
 	r=make_request(search_url)
 	match = re.compile('<a href="(.+?)">\s+<h1 title="(.+?)">[^"]+<img  src="(.+?)".*\n.*>(.+?)</span>').findall(r)
 	for link, name, img, movie in match:
@@ -148,7 +149,7 @@ def get_search():
 			if (movie!= 'TV Show'):
 				addDir(8, name, link, img, isplayable=True)
 			else:
-				addDir(1, name, base_url+link+'/episodes', img, dirmode='allshows', isplayable=False)
+				addDir(1, name, base_url+link, img, dirmode='allshows', isplayable=False)
 			
 	match2 = re.compile('class="next-epg next-disabled"').findall(r)
 	
@@ -174,8 +175,6 @@ def get_livetv():
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		if '&amp;' in img:
-				img = img.replace('&amp;', '&')
 		addDir(8, name, link, img, isplayable=True)
 		
 	match2 = re.compile('class="next-epg next-disabled"').findall(r)
@@ -203,8 +202,6 @@ def get_movies():
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		if '&amp;' in img:
-				img = img.replace('&amp;', '&')
 		addDir(8, name, link, img, isplayable=True)  
 
 	match2 = re.compile('class="next-epg next-disabled"').findall(r)
@@ -219,9 +216,10 @@ def get_movies():
 		xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
 
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
+	
+	setView('movies', 'movie-view')
         
 def get_shows():
-
 	if url:
 		r=make_request(base_url+url)
 	else:
@@ -234,9 +232,7 @@ def get_shows():
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		if '&amp;' in img:
-				img = img.replace('&amp;', '&')
-		addDir(1, name, base_url+link+'/episodes', img, dirmode='allshows', isplayable=False) 
+		addDir(1, name, base_url+link, img, dirmode='allshows', isplayable=False) 
 
 	match2 = re.compile('class="next-epg next-disabled"').findall(r)
 
@@ -251,27 +247,18 @@ def get_shows():
 
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
+	# setView('tvshows', 'default-view')
 
 def get_episodes():
-	r = make_request(url)
+	r = make_request(url+'/episodes')
 
-	match = re.compile('<a href="(.+?)" title="(.+?)">\s+<img  src="(.+?)"').findall(str(r))
+	match = re.compile('<a href="(.+?)" title="(.+?)">\s+<img  src="(.+?)"').findall(r)
 	for link, name, img in match:
 		if '&amp;' in name:
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		if '&amp;' in img:
-				img = img.replace('&amp;', '&')
-		addDir(8, name, link, img, isplayable=True)
-
-	match2 = re.compile('class="next-epg next-disabled"').findall(str(r))
-
-	if match2:
-		print "no more next page"		
-	else:
-		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(str(r))
-		addDir(1, '>>> Next Page >>>', base_url+match3[0], '')		
+		addDir(8, name, link, img, isplayable=True) 
     
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 	
@@ -296,7 +283,6 @@ def get_livetv_url(url):
     html2 = make_request(decrypted)
     if html2:
 		matchlist2 = re.compile("BANDWIDTH=([0-9]+)[^\n]*\n([^\n]*)\n").findall(str(html2))
-		print matchlist2
 		if matchlist2:
 			for (size, video) in matchlist2:
 				if size:
@@ -312,7 +298,6 @@ def get_livetv_url(url):
         videos.append( [-2, match] )
 
     videos.sort(key=lambda L : L and L[0], reverse=True)
-    print 'videos',videos
 
     addon_log('get_video_url: end...')
     final_video = videos[0][1]
@@ -323,6 +308,19 @@ def get_livetv_url(url):
 		
     # xbmcplugin.endOfDirectory(int(sys.argv[1]))
     
+def setView(content, viewType):
+        
+    if content:
+        xbmcplugin.setContent(int(sys.argv[1]), content)
+
+    xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_UNSORTED )
+    xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
+    xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_VIDEO_RATING )
+    xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_DATE )
+    xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_PROGRAM_COUNT )
+    xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_VIDEO_RUNTIME )
+    xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_GENRE )
+    xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_MPAA_RATING )
 
 	#Thanks Shani(LSP)
 def GetLSProData(key,iv,data):
@@ -348,15 +346,15 @@ def addDir(mode,name,url,image, dirmode=None, isplayable=False):
 
 	ok=True
 	item=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=image)
-	# item.setInfo( type="Video", infoLabels={ "Title": name } )
+	item.setInfo( type="Video", infoLabels={ "Title": name } )
 
 	if dirmode == 'allshows': 
-		add_fav_cmd = 'MODE:ADD;NAME:{};URL:{}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
-		RunPlugin2 = 'RunPlugin({}?mode=13&fav_arg={})'.format(sys.argv[0], add_fav_cmd)
+		add_fav_cmd = 'MODE:ADD;NAME:{0};URL:{1}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
+		RunPlugin2 = 'RunPlugin({0}?mode=13&fav_arg={1})'.format(sys.argv[0], add_fav_cmd)
 		item.addContextMenuItems([('Add Ditto Favorites', RunPlugin2,)])
 	if dirmode == 'favorites':
-		rem_fav_cmd = 'MODE:REMOVE;NAME:{};URL:{}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
-		RunPlugin = 'RunPlugin({}?mode=13&fav_arg={})'.format(sys.argv[0], rem_fav_cmd)
+		rem_fav_cmd = 'MODE:REMOVE;NAME:{0};URL:{1}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
+		RunPlugin = 'RunPlugin({0}?mode=13&fav_arg={1})'.format(sys.argv[0], rem_fav_cmd)
 		item.addContextMenuItems([('Remove from Ditto Favorites', RunPlugin,)])
 
 	isfolder=True
