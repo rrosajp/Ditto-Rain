@@ -168,7 +168,7 @@ def get_livetv():
 		base4_url = 'http://www.dittotv.com/livetv/all/0/'+language
 	r = make_request(base4_url)
 
-	match = re.compile('<div class="subpattern2 movies-all-indi channels-all alltvchannel">\n<a href="(.+?)" title="(.+?)"><img src="(.+?)"').findall(r)
+	match = re.compile('<div class="subpattern2 movies-all-indi channels-all alltvchannel">\s+<a href="(.+?)" title="(.+?)">\n\s+<img src="(.+?)"').findall(r)
 	
 	for link, name, img in match:
 		if '&amp;' in name:
