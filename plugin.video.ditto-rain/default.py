@@ -29,7 +29,7 @@ moviessort = (Addon.getSetting('moviessortType'))
 quality = (Addon.getSetting('qualityType')).lower()
 
 base_url = 'http://www.dittotv.com'
-base2_url = '/tvshows/all/0/'+language+'/'
+# base2_url = '/tvshows/all/0/'+language+'/'
 listitem=''
 
 if 'Latest' in moviessort:
@@ -82,20 +82,21 @@ def new_live_tv():
 def new_live_tv_url(name, url):
 	r = make_request(url)
 	csrf = re.compile('<meta name="csrf-token" content="(.+?)">').findall(r)[0]
+	match = re.compile('<source type="application/x-mpegurl"  src="(.+?)">').findall(r)[0]
 	
-	headers = {'Accept':'*/*', 'Accept-Language':'en-US,en;q=0.5', 'Accept-Encoding':'gzip, deflate', 'Connection':'keep-alive', 'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0', 'X-CSRF-Token' : csrf, 'Referer' : url,'X-Requested-With' : 'XMLHttpRequest'} #
-	n=10
-	n2=''.join(["%s" % random.randint(1,9) for num in range(0,n)])
+	# headers = {'Accept':'*/*', 'Accept-Language':'en-US,en;q=0.5', 'Accept-Encoding':'gzip, deflate', 'Connection':'keep-alive', 'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0', 'X-CSRF-Token' : csrf, 'Referer' : url,'X-Requested-With' : 'XMLHttpRequest'} #
+	# n=10
+	# n2=''.join(["%s" % random.randint(1,9) for num in range(0,n)])
 	
-	s.cookies['deviceid'] = n2 #'3854659488' #enter random device id
+	# s.cookies['deviceid'] = n2 #'3854659488' #enter random device id
 	
-	if '&' in name:
-		name2 = name.replace('&', '%26')
-	else:
-		name2 = name
-	new_url = s.get('http://www.dittotv.com/index.php?r=live-tv/link&name='+name2, headers=headers, cookies=s.cookies).json()
-	# data = json.loads(new_url.text)
-	match = new_url['link'].replace('\\', '')
+	# if '&' in name:
+		# name2 = name.replace('&', '%26')
+	# else:
+		# name2 = name
+	# new_url = s.get('http://www.dittotv.com/index.php?r=live-tv/link&name='+name2, headers=headers, cookies=s.cookies).json()
+	# # data = json.loads(new_url.text)
+	# match = new_url['link'].replace('\\', '')
 	m3 = match+'|Referer='+url
 	listitem =xbmcgui.ListItem(name)
 	listitem.setProperty('IsPlayable', 'true')
@@ -145,8 +146,10 @@ def get_favorites():
 			addDir(1, fav_name, fav_url, fav_icon, dirmode='favorites')
 	else:
 		dialog.notification('Info', 'No shows were added to the addon favorites.', xbmcgui.NOTIFICATION_INFO, 2000)
-
+	
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
+	
+	setView('episodes', 'episode-view')
 	
 def edit_favorites(fav_arg):
     print 'Favorites function activated'
@@ -166,21 +169,21 @@ def edit_favorites(fav_arg):
 
     if fav_mode == 'ADD':
         progress = xbmcgui.DialogProgress()
-        progress.create('Adding to favorites', 'Added "{}" to favorites'.format(fav_name))
+        progress.create('Adding to favorites', 'Added "{0}" to favorites'.format(fav_name))
         progress.update( 50, "", 'Getting show icon...', "" )
         print 'Adding Favorite'
         content = make_request(fav_url)
         show_icon = ''
-        c.execute('INSERT OR REPLACE INTO ditto_fav_list VALUES ("{}", "{}", "{}")'.format(fav_name, fav_url, show_icon))
+        c.execute('INSERT OR REPLACE INTO ditto_fav_list VALUES ("{0}", "{1}", "{2}")'.format(fav_name, fav_url, show_icon))
         progress.close()
         header = 'Show Added'
-        text = '"{}" added to favorites.'.format(fav_name)
+        text = '"{0}" added to favorites.'.format(fav_name)
 
     else:
         print 'Removing Favorite'
-        c.execute('DELETE FROM ditto_fav_list WHERE fav_name="{}"'.format(fav_name))
+        c.execute('DELETE FROM ditto_fav_list WHERE fav_name="{0}"'.format(fav_name))
         header = 'Show Removed'
-        text = '"{}" removed from favorites.'.format(fav_name)
+        text = '"{0}" removed from favorites.'.format(fav_name)
     conn.commit()
     conn.close()
     dialog.notification(header, text, xbmcgui.NOTIFICATION_INFO, 3000)
@@ -307,6 +310,7 @@ def get_episodes():
 	xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
+	setView('default', 'default-view')
     
 def setView(content, viewType):
         
@@ -336,12 +340,12 @@ def addDir(mode,name,url,image,dirmode=None,isplayable=False):
 		item.setArt({'fanart': image})
 
 	if dirmode == 'allshows': 
-		add_fav_cmd = 'MODE:ADD;NAME:{};URL:{}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
-		RunPlugin2 = 'RunPlugin({}?mode=13&fav_arg={})'.format(sys.argv[0], add_fav_cmd)
+		add_fav_cmd = 'MODE:ADD;NAME:{0};URL:{1}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
+		RunPlugin2 = 'RunPlugin({0}?mode=13&fav_arg={1})'.format(sys.argv[0], add_fav_cmd)
 		item.addContextMenuItems([('Add Ditto Favorites', RunPlugin2,)])
 	if dirmode == 'favorites':
-		rem_fav_cmd = 'MODE:REMOVE;NAME:{};URL:{}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
-		RunPlugin = 'RunPlugin({}?mode=13&fav_arg={})'.format(sys.argv[0], rem_fav_cmd)
+		rem_fav_cmd = 'MODE:REMOVE;NAME:{0};URL:{1}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
+		RunPlugin = 'RunPlugin({0}?mode=13&fav_arg={1})'.format(sys.argv[0], rem_fav_cmd)
 		item.addContextMenuItems([('Remove from Ditto Favorites', RunPlugin,)])
 
 	isfolder=True
