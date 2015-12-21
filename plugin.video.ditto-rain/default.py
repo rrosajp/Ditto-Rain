@@ -5,12 +5,10 @@ import xbmcplugin
 import xbmcgui
 import xbmcaddon
 from addon.common.addon import Addon
-import time
-import base64, json
-import pyaes
 import sqlite3
 import socket
-
+import requests
+import random
 
 addon_id = 'plugin.video.ditto-rain'
 addon = Addon(addon_id, sys.argv)
@@ -25,44 +23,113 @@ local_db = os.path.join(profile, 'local_db.db')
 pluginDir = sys.argv[0]
 dialog = xbmcgui.Dialog()
 
-language = (Addon.getSetting('langType')).lower()
-tvsort = (Addon.getSetting('tvsortType')).lower()
-moviessort = (Addon.getSetting('moviessortType')).lower()
+language = (Addon.getSetting('langType'))
+tvsort = (Addon.getSetting('tvsortType'))
+moviessort = (Addon.getSetting('moviessortType'))
+quality = (Addon.getSetting('qualityType')).lower()
 
 base_url = 'http://www.dittotv.com'
 base2_url = '/tvshows/all/0/'+language+'/'
 listitem=''
 
-# Create addon folder in user_data, necessary for the sqlite db
-if Addon.getSetting("firstrun") != 'false':
-	Addon.setSetting("firstrun", 'false')
+if 'Latest' in moviessort:
+	moviessort = 'created%2Cdesc'
+elif 'A-Z' in moviessort:
+	moviessort = 'name%2Casc'
+else:
+	moviessort = 'name%2Cdesc'
+	
+if 'Latest' in tvsort:
+	tvsort = 'created%2Cdesc'
+elif 'A-Z' in tvsort:
+	tvsort = 'name%2Casc'
+else:
+	tvsort = 'name%2Cdesc'	
+	
+
+s = requests.Session()
 
 def addon_log(string):
     if debug == 'true':
-        xbmc.log("[plugin.video.ditto-rain-%s]: %s" %(addon_version, string))
+        xbmc.log("[plugin.video.ditto2-rain-%s]: %s" %(addon_version, string))
 
 def make_request(url):
-    try:
-    	headers = {'User-Agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:39.0) Gecko/20100101 Firefox/39.0', 'Accept' : 'text/html,application/xhtml+xml,application/xml'}
-        if url == None:
-        	url = base2_url
-        request = urllib2.Request(url,None,headers)
-        response = urllib2.urlopen(request)
-        data = response.read()
-        response.close()
-        return data
+    try:		
+		headers = {'Accept':'text/html,application/xhtml+xml,q=0.9,image/jxr,*/*', 'Accept-Language':'en-US,en;q=0.5', 'Accept-Encoding':'gzip, deflate', 'Connection':'keep-alive', 'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0'}
+		response = s.get(url, headers=headers, cookies=s.cookies)
+		return response.text
     except urllib2.URLError, e:    # This is the correct syntax
         print e
-        ##sys.exit(1)
         
 def get_menu():
-
 	addDir(2, '[COLOR orange][B]TV Shows[/B][/COLOR]', '', '')
 	addDir(3, '[COLOR white][B]Movies[/B][/COLOR]', '', '')        
-	addDir(4, '[COLOR green][B]Live TV[/B][/COLOR]', '', '')
+	addDir(24, '[COLOR green][B]Live TV[/B][/COLOR]', '', '')
 	addDir(5, 'Search', '', '')
 	addDir(12, 'My Favorites', '', '')
 
+def new_live_tv():
+	r = make_request('http://www.dittotv.com/index.php?r=live-tv/view&id=10004')
+	match = re.compile('Select Channel</option>(.+?)</select>', re.DOTALL).findall(r)[0]
+	match2 = re.compile('<option value="(\d+)">(.+?)</option>').findall(match)
+	for link, title in match2:
+		if '&amp;' in title:
+			title = title.replace('&amp;', '&')
+		if '&#39;' in title:
+			title = title.replace('&#39;', '\'')
+		addDir(28,title,'http://www.dittotv.com/index.php?r=live-tv/view&id='+str(link),'http://77.36.61.42/images_ditto/new_images/livetv/'+str(link)+'.jpg', isplayable=True)
+		
+def new_live_tv_url(name, url):
+	r = make_request(url)
+	csrf = re.compile('<meta name="csrf-token" content="(.+?)">').findall(r)[0]
+	
+	headers = {'Accept':'*/*', 'Accept-Language':'en-US,en;q=0.5', 'Accept-Encoding':'gzip, deflate', 'Connection':'keep-alive', 'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0', 'X-CSRF-Token' : csrf, 'Referer' : url,'X-Requested-With' : 'XMLHttpRequest'} #
+	n=10
+	n2=''.join(["%s" % random.randint(1,9) for num in range(0,n)])
+	
+	s.cookies['deviceid'] = n2 #'3854659488' #enter random device id
+	
+	if '&' in name:
+		name2 = name.replace('&', '%26')
+	else:
+		name2 = name
+	new_url = s.get('http://www.dittotv.com/index.php?r=live-tv/link&name='+name2, headers=headers, cookies=s.cookies).json()
+	# data = json.loads(new_url.text)
+	match = new_url['link'].replace('\\', '')
+	m3 = match+'|Referer='+url
+	listitem =xbmcgui.ListItem(name)
+	listitem.setProperty('IsPlayable', 'true')
+	listitem.setPath(m3)
+	xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, listitem)
+	
+def new_movies_url(name, url):
+	# print url
+	r = make_request(url)
+	csrf = re.compile('<meta name="csrf-token" content="(.+?)">').findall(r)[0]
+	movie_src = re.compile('src="(.+?)">\s+ </video>').findall(r)[0]
+	m3 = movie_src+'|Referer='+url
+	# print 'm3 is', m3
+	listitem = xbmcgui.ListItem(name)
+	listitem.setProperty('IsPlayable', 'true')
+	# listitem.setProperty('mimetype', 'video/x-msvideo')
+	listitem.setPath(m3)
+	xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, listitem)
+	
+def new_episodes_url(name, url):
+	# print url
+	r = make_request(url)
+	csrf = re.compile('<meta name="csrf-token" content="(.+?)">').findall(r)[0]
+	movie_src = re.compile('src="(.+?)">\s+ </video>').findall(r)[0]
+	m3 = movie_src+'|Referer='+url
+	# print 'm3 is', m3
+	listitem = xbmcgui.ListItem(name)
+	xbmc.Player().play(m3, listitem)
+	sys.exit()
+	# listitem.setProperty('IsPlayable', 'true')
+	# # listitem.setProperty('mimetype', 'video/x-msvideo')
+	# listitem.setPath(m3)
+	# xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, listitem)
+	
 def get_favorites():
 	print 'Display Favorite Shows'
 	conn = sqlite3.connect(local_db)
@@ -99,21 +166,21 @@ def edit_favorites(fav_arg):
 
     if fav_mode == 'ADD':
         progress = xbmcgui.DialogProgress()
-        progress.create('Adding to favorites', 'Added "{0}" to favorites'.format(fav_name))
+        progress.create('Adding to favorites', 'Added "{}" to favorites'.format(fav_name))
         progress.update( 50, "", 'Getting show icon...', "" )
         print 'Adding Favorite'
         content = make_request(fav_url)
         show_icon = ''
-        c.execute('INSERT OR REPLACE INTO ditto_fav_list VALUES ("{0}", "{1}", "{2}")'.format(fav_name, fav_url, show_icon))
+        c.execute('INSERT OR REPLACE INTO ditto_fav_list VALUES ("{}", "{}", "{}")'.format(fav_name, fav_url, show_icon))
         progress.close()
         header = 'Show Added'
-        text = '"{0}" added to favorites.'.format(fav_name)
+        text = '"{}" added to favorites.'.format(fav_name)
 
     else:
         print 'Removing Favorite'
-        c.execute('DELETE FROM ditto_fav_list WHERE fav_name="{0}"'.format(fav_name))
+        c.execute('DELETE FROM ditto_fav_list WHERE fav_name="{}"'.format(fav_name))
         header = 'Show Removed'
-        text = '"{0}" removed from favorites.'.format(fav_name)
+        text = '"{}" removed from favorites.'.format(fav_name)
     conn.commit()
     conn.close()
     dialog.notification(header, text, xbmcgui.NOTIFICATION_INFO, 3000)
@@ -127,93 +194,64 @@ def get_search():
 		keyb.doModal()
 		if (keyb.isConfirmed()):
 			search_term = urllib.quote_plus(keyb.getText())
-			if not search_term:
-				addon.show_ok_dialog(['empty search not allowed'.title()], addon.get_name())
-				sys.exit()				
-		else:
-			get_menu()
-
 			
-		search_url = 'http://www.dittotv.com/search/all/0/'+search_term
+		search_url = 'http://www.dittotv.com/index.php?r=search/index&q='+search_term
 
 	r=make_request(search_url)
-	match = re.compile('<a href="(.+?)">\s+<h1 title="(.+?)">[^"]+<img  src="(.+?)".*\n.*>(.+?)</span>').findall(r)
-	for link, name, img, movie in match:
-		if (movie != 'Live TV'):
+	match = re.compile('<div class="result clearfix">\s+<a href="(.+?)" class="poster">\s+<img src="(.+?)".+?<a.+?>\s+(.+?)\s+<', re.DOTALL).findall(r)
+	for link, img, name in match:
+		print link, img, name
+		if 'live-tv' not in link:
 			if '&amp;' in name:
 				name = name.replace('&amp;', '&')
 			if '&#39;' in name:
 				name = name.replace('&#39;', '\'')
 			if '&amp;' in img:
 				img = img.replace('&amp;', '&')
-			if (movie!= 'TV Show'):
-				addDir(8, name, link, img, isplayable=True)
+			if 'tv-show' not in link:
+				addDir(29, name, base_url+link, img, isplayable=True)
 			else:
 				addDir(1, name, base_url+link, img, dirmode='allshows', isplayable=False)
 			
-	match2 = re.compile('class="next-epg next-disabled"').findall(r)
+	match2 = re.compile('<li class="next"><a href="(.+?)" data-page').findall(r)
 	
 	if match2:
-		print "no more next page"		
+		# match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
+		match3 = match2[0].replace('name%2Casc', moviessort)
+		match3 = match3.replace('&amp;', '&')
+		addDir(4, '[COLOR gold]>>> Next Page >>>[/COLOR]', match3, '')		
 	else:
-		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
-		addDir(4, '>>> Next Page >>>', match3[0], '')
-	
-	xbmcplugin.endOfDirectory(int(sys.argv[1]))
-
-def get_livetv():
-	if url:
-		base4_url = base_url+url
-	else:
-		base4_url = 'http://www.dittotv.com/livetv/all/0/'+language
-	r = make_request(base4_url)
-
-	match = re.compile('<div class="subpattern2 movies-all-indi channels-all alltvchannel">\s+<a href="(.+?)" title="(.+?)">\n\s+<img src="(.+?)"').findall(r)
-	
-	for link, name, img in match:
-		if '&amp;' in name:
-			name = name.replace('&amp;', '&')
-		if '&#39;' in name:
-			name = name.replace('&#39;', '\'')
-		addDir(8, name, link, img, isplayable=True)
-		
-	match2 = re.compile('class="next-epg next-disabled"').findall(r)
-	
-	if match2:
-		print "no more next page"		
-	else:
-		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
-		addDir(4, '>>> Next Page >>>', match3[0], '')
+		print "no more next page"
 	
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
         
 def get_movies():
-	base3_url = '/movies/all/0/'+language
 
 	if url:
 		r=make_request(base_url+url)
 	else:
-		r = make_request(base_url+base3_url)
+		new_url ='/index.php?r=movie%2Findex&page=1&ListingForm%5BorderBy%5D='+moviessort+'&ListingForm%5Blanguage%5D='+language+'&ListingForm%5Bgenre%5D=All'
+		r = make_request(base_url+new_url)
 
-	match = re.compile('<a href="(.+?)" title="(.+?)" >\n.*<img src="(.+?)"').findall(r)
+	match = re.compile('<div class="unit item movie-item pull-left".+?<a href="(.+?)".+?img src=\'(.+?)\'.+?alt="(.+?)"', re.DOTALL).findall(r)
+	print match
 
-	for link, name, img in match:
+	for link, img, name in match:
 		if '&amp;' in name:
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		addDir(8, name, link, img, isplayable=True)  
+		addDir(29, name, base_url+link, img, isplayable=True)  
 
-	match2 = re.compile('class="next-epg next-disabled"').findall(r)
+	match2 = re.compile('<li class="next"><a href="(.+?)" data-page').findall(r)
 
 	if match2:
-		print "no more next page"		
+		# match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
+		match3 = match2[0].replace('name%2Casc', moviessort)
+		match3 = match3.replace('&amp;', '&')
+		addDir(3, '[COLOR gold]>>> Next Page >>>[/COLOR]', match3, '')		
 	else:
-		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
-		addDir(3, '>>> Next Page >>>', match3[0], '')
-		
-	if (moviessort == "name"):
-		xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
+		print "no more next page"
 
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
 	
@@ -223,90 +261,52 @@ def get_shows():
 	if url:
 		r=make_request(base_url+url)
 	else:
-		r = make_request(base_url+base2_url)
+		new_url ='/index.php?r=tv-show%2Findex&page=1&ListingForm%5BorderBy%5D='+tvsort+'&ListingForm%5Blanguage%5D='+language+'&ListingForm%5Bgenre%5D=All'
+		r = make_request(base_url+new_url)
 
-	match = re.compile('<a href="(.+?)" title="(.+?)">\s+<img  src="(.+?)"').findall(r)
+	match = re.compile('<div class="unit item movie-item pull-left".+?<a href="(.+?)".+?img src=\'(.+?)\'.+?alt="(.+?)"', re.DOTALL).findall(r)
+	print match
 
-	for link, name, img in match:
+	for link, img, name in match:
 		if '&amp;' in name:
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		addDir(1, name, base_url+link, img, dirmode='allshows', isplayable=False) 
+		addDir(1, name, base_url+link, img, dirmode='allshows', isplayable=False)  
 
-	match2 = re.compile('class="next-epg next-disabled"').findall(r)
+	match2 = re.compile('<li class="next"><a href="(.+?)" data-page').findall(r)
 
 	if match2:
-		print "no more next page"		
+		# match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
+		match3 = match2[0].replace('name%2Casc', moviessort)
+		match3 = match3.replace('&amp;', '&')
+		addDir(2, '[COLOR gold]>>> Next Page >>>[/COLOR]', match3, '', isplayable=False)		
 	else:
-		match3 = re.compile('<a href="(.+?)" class="next-epg"').findall(r)
-		addDir(2, '>>> Next Page >>>', match3[0], '')
+		print "no more next page"
 		
-	if (tvsort == "name"):
-		xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
+	# if (moviessort == "name"):
+		# xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
 
-	xbmcplugin.endOfDirectory(int(sys.argv[1]))
+	# xbmcplugin.endOfDirectory(int(sys.argv[1]))
+	
+	# setView('', 'movie-view')
 
-	# setView('tvshows', 'default-view')
+	setView('episodes', 'episode-view')
 
 def get_episodes():
-	r = make_request(url+'/episodes')
-
-	match = re.compile('<a href="(.+?)" title="(.+?)">\s+<img  src="(.+?)"').findall(r)
-	for link, name, img in match:
+	# print 'inside getepisodes', url
+	r = make_request(url)
+	match = re.compile('<li\s+>.+?<a href="(.+?)">.+?</svg>\s+(.+?)\s+</a>', re.DOTALL).findall(r)
+	for link, name in match:
 		if '&amp;' in name:
 			name = name.replace('&amp;', '&')
 		if '&#39;' in name:
 			name = name.replace('&#39;', '\'')
-		addDir(8, name, link, img, isplayable=True) 
+		addDir(30, name, base_url+link, '', isplayable=False) 
     
+	xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_LABEL )
 	xbmcplugin.endOfDirectory(int(sys.argv[1]))
-	
-def get_livetv_url(url):
-    addon_log('get_video_url: begin...')
-    videos = []
-    ptclass=url
-    ptclass=ptclass.rsplit('/')[-1:][0]
-    html = make_request(base_url+url)
-    encurl = re.findall(r'\"file\":\"(.+?)\"', html)[0]
-    if 'livetv' in url:
-        key = re.findall(r'value=\"(.*?)\" class=\"livetv-url-val\"', html)[0]
-    else:
-        key = re.findall(r'value=\"(.*?)\" class=\"e-url-val\"', html)[0]
-    decrypted = GetLSProData(key=key, iv='00000000000000000000000000000000', data=encurl)
-    params = re.compile("(http://[^']*\/)").findall(decrypted)
-    if params:
-        params = params[0]
-    else:
-        params = ''
-	
-    html2 = make_request(decrypted)
-    if html2:
-		matchlist2 = re.compile("BANDWIDTH=([0-9]+)[^\n]*\n([^\n]*)\n").findall(str(html2))
-		if matchlist2:
-			for (size, video) in matchlist2:
-				if size:
-					size = int(size)
-				else:
-					size = 0
-				if 'http://' in video:
-					video = video
-				else:
-					video=params+video
-				videos.append( [size, video] )
-    else:
-        videos.append( [-2, match] )
 
-    videos.sort(key=lambda L : L and L[0], reverse=True)
-
-    addon_log('get_video_url: end...')
-    final_video = videos[0][1]
-    listitem =xbmcgui.ListItem(ptclass)
-    listitem.setProperty('IsPlayable', 'true')
-    listitem.setPath(final_video)
-    xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, listitem)		
-		
-    # xbmcplugin.endOfDirectory(int(sys.argv[1]))
     
 def setView(content, viewType):
         
@@ -321,23 +321,8 @@ def setView(content, viewType):
     xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_VIDEO_RUNTIME )
     xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_GENRE )
     xbmcplugin.addSortMethod( handle=int( sys.argv[ 1 ] ), sortMethod=xbmcplugin.SORT_METHOD_MPAA_RATING )
-
-	#Thanks Shani(LSP)
-def GetLSProData(key,iv,data):
-    import binascii
-    key=base64.b64decode(key)
-    iv=binascii.unhexlify(iv)
-    data=base64.b64decode(data)
-    decryptor = pyaes.new(key, pyaes.MODE_CBC, IV=iv)
-    val1= decryptor.decrypt(data)
-    val2= repr(val1).partition('\\')
-    retval= val2[0].replace('\'', '')
-    return retval
 	
-def addDir(mode,name,url,image, dirmode=None, isplayable=False):
-	# name = name.encode('utf-8', 'ignore')
-	# url = url.encode('utf-8', 'ignore')
-	# image = image.encode('utf-8', 'ignore')
+def addDir(mode,name,url,image,dirmode=None,isplayable=False):
 
 	if 0==mode:
 		link = url
@@ -347,14 +332,16 @@ def addDir(mode,name,url,image, dirmode=None, isplayable=False):
 	ok=True
 	item=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=image)
 	item.setInfo( type="Video", infoLabels={ "Title": name } )
+	if 'tv-show' in url:
+		item.setArt({'fanart': image})
 
 	if dirmode == 'allshows': 
-		add_fav_cmd = 'MODE:ADD;NAME:{0};URL:{1}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
-		RunPlugin2 = 'RunPlugin({0}?mode=13&fav_arg={1})'.format(sys.argv[0], add_fav_cmd)
+		add_fav_cmd = 'MODE:ADD;NAME:{};URL:{}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
+		RunPlugin2 = 'RunPlugin({}?mode=13&fav_arg={})'.format(sys.argv[0], add_fav_cmd)
 		item.addContextMenuItems([('Add Ditto Favorites', RunPlugin2,)])
 	if dirmode == 'favorites':
-		rem_fav_cmd = 'MODE:REMOVE;NAME:{0};URL:{1}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
-		RunPlugin = 'RunPlugin({0}?mode=13&fav_arg={1})'.format(sys.argv[0], rem_fav_cmd)
+		rem_fav_cmd = 'MODE:REMOVE;NAME:{};URL:{}'.format(urllib.quote_plus(name), urllib.quote_plus(url))
+		RunPlugin = 'RunPlugin({}?mode=13&fav_arg={})'.format(sys.argv[0], rem_fav_cmd)
 		item.addContextMenuItems([('Remove from Ditto Favorites', RunPlugin,)])
 
 	isfolder=True
@@ -422,9 +409,6 @@ if mode==2:
 
 if mode==3:
     get_movies()
-    
-if mode==4:
-    get_livetv()
 
 if mode==5:
 	get_search()
@@ -432,16 +416,23 @@ if mode==5:
 if mode==1:
     get_episodes()
 
-if mode==8:
-    get_livetv_url(url)
-    
-if mode==11:
-    get_video_url()
-
 if mode==12:
 	get_favorites()
 
 if mode==13:
 	edit_favorites(fav_arg)
 	
+if mode==24:
+	new_live_tv()
+
+if mode==28:
+	new_live_tv_url(name, url)
+	
+if mode==29:
+	new_movies_url(name, url)
+	
+if mode==30:
+	new_episodes_url(name, url)
+	
 xbmcplugin.endOfDirectory(int(sys.argv[1]))
+s.close()
