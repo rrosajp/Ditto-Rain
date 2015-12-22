@@ -82,21 +82,21 @@ def new_live_tv():
 def new_live_tv_url(name, url):
 	r = make_request(url)
 	csrf = re.compile('<meta name="csrf-token" content="(.+?)">').findall(r)[0]
-	match = re.compile('<source type="application/x-mpegurl"  src="(.+?)">').findall(r)[0]
+	source = re.compile('<source type="application/x-mpegurl"  src="(.+?)">').findall(r)[0]
 	
-	# headers = {'Accept':'*/*', 'Accept-Language':'en-US,en;q=0.5', 'Accept-Encoding':'gzip, deflate', 'Connection':'keep-alive', 'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0', 'X-CSRF-Token' : csrf, 'Referer' : url,'X-Requested-With' : 'XMLHttpRequest'} #
-	# n=10
-	# n2=''.join(["%s" % random.randint(1,9) for num in range(0,n)])
+	headers = {'Accept':'*/*', 'Accept-Language':'en-US,en;q=0.5', 'Accept-Encoding':'gzip, deflate', 'Connection':'keep-alive', 'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0', 'X-CSRF-Token' : csrf, 'Referer' : url,'X-Requested-With' : 'XMLHttpRequest'} #
+	n=10
+	n2=''.join(["%s" % random.randint(1,9) for num in range(0,n)])
 	
-	# s.cookies['deviceid'] = n2 #'3854659488' #enter random device id
+	s.cookies['deviceid'] = n2 #'3854659488' #enter random device id
 	
-	# if '&' in name:
-		# name2 = name.replace('&', '%26')
-	# else:
-		# name2 = name
-	# new_url = s.get('http://www.dittotv.com/index.php?r=live-tv/link&name='+name2, headers=headers, cookies=s.cookies).json()
-	# # data = json.loads(new_url.text)
-	# match = new_url['link'].replace('\\', '')
+	if '&' in name:
+		name2 = name.replace('&', '%26')
+	else:
+		name2 = name
+	new_url = s.get('http://www.dittotv.com/index.php?r=live-tv/link&name='+name2, headers=headers, cookies=s.cookies).json()
+	# data = json.loads(new_url.text)
+	match = new_url['link'].replace('\\', '')
 	m3 = match+'|Referer='+url
 	listitem =xbmcgui.ListItem(name)
 	listitem.setProperty('IsPlayable', 'true')
