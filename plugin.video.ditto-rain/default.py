@@ -11,7 +11,7 @@ import requests
 import random
 import json
 
-addon_id = 'plugin.video.ditto2-rain'
+addon_id = 'plugin.video.ditto-rain'
 addon = Addon(addon_id, sys.argv)
 Addon = xbmcaddon.Addon(addon_id)
 debug = Addon.getSetting('debug')
